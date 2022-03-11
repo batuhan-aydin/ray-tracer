@@ -1,0 +1,17 @@
+[package]
+name = "ray_tracer"
+version = "0.1.0"
+authors = ["Batuhan Aydin"]
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[[example]]
+name = "chapter_01"
+path = "examples/chapter_01.rs"
+
+[[example]]
+name = "chapter_02"
+path = "examples/chapter_02.rs"
+
+[dependencies]

@@ -24,7 +24,7 @@ impl Environment {
 }
 
 impl Tuple {
-    fn new(x: f32, y: f32, z: f32, w: f32) -> Tuple {
+    pub fn new(x: f32, y: f32, z: f32, w: f32) -> Tuple {
         Tuple {
             x,
             y,

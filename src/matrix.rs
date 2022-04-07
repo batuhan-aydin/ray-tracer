@@ -1,5 +1,5 @@
 use std::ops::{Mul, Neg};
-use crate::tuple::Tuple;
+use crate::{tuple::Tuple, helper::Axis};
 
 #[derive(Debug, PartialEq)]
 pub struct Matrix {
@@ -38,6 +38,58 @@ impl Matrix {
                                         0.0, 1.0, 0.0, 0.0,
                                         0.0, 0.0, 1.0, 0.0,
                                         0.0, 0.0, 0.0, 1.0])
+    }
+
+    pub fn rotation(axis: Axis, value: f32) -> Matrix {
+        let mut result = Matrix::new_identity_matrix();
+        match axis {
+            Axis::X => {
+                result.data[5] = value.cos();
+                result.data[6] = value.sin().neg();
+                result.data[9] = value.sin();
+                result.data[10] = value.cos();
+            },
+            Axis::Y => {
+                result.data[0] = value.cos();
+                result.data[2] = value.sin();
+                result.data[8] = value.sin().neg();
+                result.data[10] = value.cos();    
+            },
+            Axis::Z => {
+                result.data[0] = value.cos();
+                result.data[1] = value.sin().neg();
+                result.data[4] = value.sin();
+                result.data[5] = value.cos();
+            }
+        }
+        result
+    }
+
+    pub fn shearing(xy: f32, xz: f32, yx: f32, yz: f32, zx: f32, zy: f32) -> Matrix {
+        let mut result = Matrix::new_identity_matrix();
+        result.data[1] = xy;
+        result.data[2] = xz;
+        result.data[4] = yx;
+        result.data[6] = yz;
+        result.data[8] = zx;
+        result.data[9] = zy;
+        result
+    }
+
+    pub fn translation(x: f32, y: f32, z: f32) -> Matrix {
+        let mut result = Matrix::new_identity_matrix();
+        result.data[3] = x;
+        result.data[7] = y;
+        result.data[11] = z;
+        result
+    }
+
+    pub fn scaling(x: f32, y: f32, z: f32) -> Matrix {
+        let mut result = Matrix::new_identity_matrix();
+        result.data[0] = x;
+        result.data[5] = y;
+        result.data[10] = z;
+        result
     }
 
     pub fn print(&self) {
@@ -239,8 +291,39 @@ impl Mul<Tuple> for Matrix {
     }
 }
 
+impl<'a, 'b> Mul<&'b Tuple> for &'a Matrix {
+    type Output = Tuple;
+
+    fn mul(self, rhs: &'b Tuple) -> Self::Output {
+        let mut result = Tuple::new(0.0, 0.0, 0.0, 0.0);
+        if self.row != 4 || self.column != 4 {
+            return result;
+        }
+        
+        let mut buffer = [0.0; 4];
+        let mut i = 0;
+        let mut buffer_index = 0;
+        while i < 13 {
+            buffer[buffer_index] = self.data[0 + i] * rhs.x + 
+                        self.data[1 + i] * rhs.y +
+                        self.data[2 + i] * rhs.z +
+                        self.data[3 + i] * rhs.w;
+            buffer_index += 1;
+            i += 4;
+        }
+
+        result.x = buffer[0];
+        result.y = buffer[1];
+        result.z = buffer[2];
+        result.w = buffer[3];
+        result
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    use std::f32::consts::PI;
+
     use crate::helper::equal;
 
     use super::*;
@@ -452,5 +535,223 @@ mod tests {
             println!("{}) {:?}, {:?}", i, matrixa.data[i], inversed.data[i]);
             assert!(equal(matrixa.data[i], inversed.data[i]));
         }
+    }
+
+    #[test]
+    fn multiplying_a_translation_matrix() {
+        let transform = Matrix::translation(5.0, -3.0, 2.0);
+        let p = Tuple::new_point(-3.0, 4.0, 5.0);
+        let expected = Tuple::new_point(2.0, 1.0, 7.0);
+        let result = transform * p;
+        assert_eq!(expected, result); 
+    }
+
+    #[test]
+    fn multiplying_by_the_inverse_of_a_translation_matrix() {
+        let transform = Matrix::translation(5.0, -3.0, 2.0);
+        let inv = transform.inverse();
+        let p = Tuple::new_point(-3.0, 4.0, 5.0);
+        let expected = Tuple::new_point(-8.0, 7.0, 3.0);
+        let result = inv * p;
+        assert_eq!(expected, result);
+    }
+
+    #[test]
+    fn translation_does_not_affect_vectors() {
+        let transform = Matrix::translation(5.0, -3.0, 2.0);
+        let v = Tuple::new_vector(-3.0, 4.0, 5.0);
+        let expected = Tuple::new_vector(-3.0, 4.0, 5.0);
+        let result = transform * v;
+        assert_eq!(expected, result);
+    }
+
+    #[test]
+    fn scaling_matrix_applied_to_a_point() {
+        let transform = Matrix::scaling(2.0, 3.0, 4.0);
+        let p = Tuple::new_point(-4.0, 6.0, 8.0);
+        let expected = Tuple::new_point(-8.0, 18.0, 32.0);
+        let result = transform * p;
+        assert_eq!(expected, result);
+    }
+
+    #[test]
+    fn scaling_matrix_applied_to_a_vector() {
+        let transform = Matrix::scaling(2.0, 3.0, 4.0);
+        let p = Tuple::new_vector(-4.0, 6.0, 8.0);
+        let expected = Tuple::new_vector(-8.0, 18.0, 32.0);
+        let result = transform * p;
+        assert_eq!(expected, result);
+    }
+
+    #[test]
+    fn multiplying_by_the_inverse_of_a_scaling_matrix() {
+        let transform = Matrix::scaling(2.0, 3.0, 4.0);
+        let inv = transform.inverse();
+        let v = Tuple::new_vector(-4.0, 6.0, 8.0);
+        let expected = Tuple::new_vector(-2.0, 2.0, 2.0);
+        let result = inv * v;
+        assert_eq!(expected, result);
+    }
+
+    #[test]
+    fn reflection_is_scaling_by_a_negative_value() {
+        let transform = Matrix::scaling(-1.0, 1.0, 1.0);
+        let p = Tuple::new_point(2.0, 3.0, 4.0);
+        let expected = Tuple::new_point(-2.0, 3.0, 4.0);
+        let result = transform * p;
+        assert_eq!(expected, result);
+    }
+
+    #[test]
+    fn rotating_a_point_around_x_axis() {
+        let p = Tuple::new_point(0.0, 1.0, 0.0);
+        let half_quarter = Matrix::rotation(Axis::X, PI / 4.0);
+        let full_quarter = Matrix::rotation(Axis::X, PI / 2.0);
+
+        let expected1 = Tuple::new_point(0.0, 2f32.sqrt() / 2f32, 2f32.sqrt() / 2f32);
+        let expected2 = Tuple::new_point(0.0, 0.0, 1.0);
+
+        let result1 = &half_quarter * &p;
+        let result2 = &full_quarter * &p;
+
+        assert_eq!(expected1, result1);
+        assert_eq!(expected2, result2);
+    }
+
+    #[test]
+    fn inverse_of_x_rotates_opposite_direction() {
+        let p = Tuple::new_point(0.0, 1.0, 0.0);
+        let half_quarter = Matrix::rotation(Axis::X, PI / 4.0);
+        let inv = half_quarter.inverse();
+
+        let expected = Tuple::new_point(0.0, 2f32.sqrt() / 2f32, 2f32.sqrt().neg() / 2f32);
+        let result = inv * p;
+        assert_eq!(expected, result); 
+    }
+
+    #[test]
+    fn rotating_a_point_around_y_axis() {
+        let p = Tuple::new_point(0.0, 0.0, 1.0);
+        let half_quarter = Matrix::rotation(Axis::Y, PI / 4.0);
+        let full_quarter = Matrix::rotation(Axis::Y, PI / 2.0);
+
+        let expected1 = Tuple::new_point(2f32.sqrt() / 2f32, 0.0, 2f32.sqrt() / 2f32);
+        let expected2 = Tuple::new_point(1.0, 0.0, 0.0);
+
+        let result1 = &half_quarter * &p;
+        let result2 = &full_quarter * &p;
+
+        assert_eq!(expected1, result1);
+        assert_eq!(expected2, result2);
+    }
+
+    #[test]
+    fn rotating_a_point_around_z_axis() {
+        let p = Tuple::new_point(0.0, 1.0, 0.0);
+        let half_quarter = Matrix::rotation(Axis::Z, PI / 4.0);
+        let full_quarter = Matrix::rotation(Axis::Z, PI / 2.0);
+
+        let expected1 = Tuple::new_point(2f32.sqrt().neg() / 2f32, 2f32.sqrt() / 2f32, 0.0);
+        let expected2 = Tuple::new_point(-1.0, 0.0, 0.0);
+
+        let result1 = &half_quarter * &p;
+        let result2 = &full_quarter * &p;
+
+        assert_eq!(expected1, result1);
+        assert_eq!(expected2, result2);
+    }
+
+    #[test]
+    fn shearing_x_proportion_to_y() {
+        let transform = Matrix::shearing(1.0, 0.0, 0.0, 0.0, 0.0, 0.0);
+        let p = Tuple::new_point(2.0, 3.0, 4.0);
+        
+        let expected = Tuple::new_point(5.0, 3.0, 4.0);
+        let result = transform * p;
+        assert_eq!(expected, result);
+    }
+
+    #[test]
+    fn shearing_x_proportion_to_z() {
+        let transform = Matrix::shearing(0.0, 1.0, 0.0, 0.0, 0.0, 0.0);
+        let p = Tuple::new_point(2.0, 3.0, 4.0);
+        
+        let expected = Tuple::new_point(6.0, 3.0, 4.0);
+        let result = transform * p;
+        assert_eq!(expected, result);
+    }
+
+    #[test]
+    fn shearing_y_proportion_to_x() {
+        let transform = Matrix::shearing(0.0, 0.0, 1.0, 0.0, 0.0, 0.0);
+        let p = Tuple::new_point(2.0, 3.0, 4.0);
+        
+        let expected = Tuple::new_point(2.0, 5.0, 4.0);
+        let result = transform * p;
+        assert_eq!(expected, result);
+    }
+
+    #[test]
+    fn shearing_y_proportion_to_z() {
+        let transform = Matrix::shearing(0.0, 0.0, 0.0, 1.0, 0.0, 0.0);
+        let p = Tuple::new_point(2.0, 3.0, 4.0);
+        
+        let expected = Tuple::new_point(2.0, 7.0, 4.0);
+        let result = transform * p;
+        assert_eq!(expected, result);
+    }
+
+    #[test]
+    fn shearing_z_proportion_to_x() {
+        let transform = Matrix::shearing(0.0, 0.0, 0.0, 0.0, 1.0, 0.0);
+        let p = Tuple::new_point(2.0, 3.0, 4.0);
+        
+        let expected = Tuple::new_point(2.0, 3.0, 6.0);
+        let result = transform * p;
+        assert_eq!(expected, result);
+    }
+
+    #[test]
+    fn shearing_z_proportion_to_y() {
+        let transform = Matrix::shearing(0.0, 0.0, 0.0, 0.0, 0.0, 1.0);
+        let p = Tuple::new_point(2.0, 3.0, 4.0);
+        
+        let expected = Tuple::new_point(2.0, 3.0, 7.0);
+        let result = transform * p;
+        assert_eq!(expected, result);
+    }
+
+    #[test]
+    fn transformation_in_scale() {
+        let p = Tuple::new_point(1.0, 0.0, 1.0);
+        let a = Matrix::rotation(Axis::X, PI / 2f32);
+        let b = Matrix::scaling(5.0, 5.0, 5.0);
+        let c = Matrix::translation(10.0, 5.0, 7.0);
+
+        let expected_p2 = Tuple::new_point(1.0, -1.0, 0.0);
+        let p2 = &a * &p;
+        assert_eq!(expected_p2, p2);
+
+        let expected_p3 = Tuple::new_point(5.0, -5.0, 0.0);
+        let p3 = &b * &p2;
+        assert_eq!(expected_p3, p3);
+
+        let expected_p4 = Tuple::new_point(15.0, 0.0, 7.0);
+        let p4 = &c * &p3;
+        assert_eq!(expected_p4, p4);
+
+        let expected_result = Tuple::new_point(15.0, 0.0, 7.0);
+        let result = c * b * a * p;
+        assert_eq!(expected_result, result);
+    }
+
+    #[test]
+    fn deneme12() {
+        let twelve = Tuple::new_point(0.0, 0.0, 1.0);
+        let rotation_radius = PI / 6f32;
+        
+        let r = Matrix::rotation(Axis::Y, 3.0 * rotation_radius);
+        let three = r * twelve;
+        println!("{:?}", three);
     }
 }

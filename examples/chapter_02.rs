@@ -21,5 +21,5 @@ fn main() {
         }
     }
 
-    c.write_to_file("images/chapter_022.ppm");
+    c.write_to_file("images/chapter_02.ppm");
 }

@@ -18,4 +18,8 @@ path = "examples/chapter_02.rs"
 name = "chapter_03"
 path = "examples/chapter_03.rs"
 
+[[example]]
+name = "chapter_04"
+path = "examples/chapter_04.rs"
+
 [dependencies]
